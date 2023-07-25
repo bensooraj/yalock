@@ -26,4 +26,5 @@ var (
 	ErrorLockAcquisitionFailed = errors.New("failed to acquire lock")
 	ErrorLockDoesNotExist      = errors.New("lock does not exist")
 	ErrorLockNotOwned          = errors.New("lock not owned")
+	ErrorLockUnknown           = errors.New("unknown error")
 )

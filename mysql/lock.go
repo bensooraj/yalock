@@ -109,7 +109,7 @@ func (l *MySQLLocker) IsLockAcquired(ctx context.Context, key string) (bool, err
 }
 
 func (l *MySQLLocker) IsLockFree(ctx context.Context, key string) (bool, error) {
-	var result sql.NullString
+	var result sql.NullInt16
 	row := l.db.QueryRowContext(ctx, "SELECT IS_FREE_LOCK(?)", key)
 	if row.Err() != nil {
 		return false, row.Err()
@@ -121,10 +121,22 @@ func (l *MySQLLocker) IsLockFree(ctx context.Context, key string) (bool, error) 
 
 	switch {
 	case !result.Valid: // NULL
+		// if an error occurs (such as an incorrect argument)
+		return false, &LockError{
+			Err:         ErrorLockUnknown,
+			Message:     "unknown error (possibly an incorrect argument)",
+			Method:      "IsLockFree",
+			SessionName: l.name,
+			Driver:      "mysql",
+		}
+	case result.Int16 == 0:
+		// Lock is in use
 		return false, nil
-	default:
+	case result.Int16 == 1:
+		// Lock is free (no one is using the lock)
 		return true, nil
 	}
+	return false, nil
 }
 
 func (l *MySQLLocker) ReleaseAllLocks(ctx context.Context) (int, error) {

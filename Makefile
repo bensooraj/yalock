@@ -9,3 +9,5 @@ test-mysql:
 		-db-port=$(DB_PORT) \
 		-db-name=$(DB_NAME)
 
+fmt:
+	@go fmt ./...
