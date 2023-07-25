@@ -126,3 +126,16 @@ func (l *MySQLLocker) IsLockFree(ctx context.Context, key string) (bool, error) 
 		return true, nil
 	}
 }
+
+func (l *MySQLLocker) ReleaseAllLocks(ctx context.Context) (int, error) {
+	var result sql.NullInt32
+	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_ALL_LOCKS()")
+	if row.Err() != nil {
+		return 0, row.Err()
+	}
+	err := row.Scan(&result)
+	if err != nil {
+		return 0, err
+	}
+	return int(result.Int32), nil
+}
