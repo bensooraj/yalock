@@ -11,15 +11,16 @@ func NewMySQLLocker(name string, db *sql.DB) *MySQLLocker {
 	return &MySQLLocker{name: name, db: db}
 }
 
+// Documentation: https://dev.mysql.com/doc/refman/5.7/en/locking-functions.html#function_release-lock
 type MySQLLocker struct {
 	name string
 	db   *sql.DB
 }
 
-func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, ttl time.Duration) error {
-	var result sql.NullString
+func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
+	var result sql.NullInt16
 
-	row := l.db.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", key, int(ttl.Seconds()))
+	row := l.db.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", key, int(timeout.Seconds()))
 	if row.Err() != nil {
 		return row.Err()
 	}
@@ -31,13 +32,13 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, ttl time.Dura
 	switch {
 	case !result.Valid: // NULL
 		// ... running out of memory or the thread was killed with mysqladmin kill
-		log.Printf("[AcquireLock::`%s`] failed to acquire lock on `%s` for %d seconds", l.name, key, int(ttl.Seconds()))
-	case result.String == "0":
-		log.Printf("[AcquireLock::`%s`] timeout", l.name)
+		log.Printf("[AcquireLock::`%s`] failed to acquire lock on `%s` for %d seconds", l.name, key, int(timeout.Seconds()))
+	case result.Int16 == 0:
 		// for example, because another client has previously locked the name
-		// TODO: Check if another client has previously locked the name
-	case result.String == "1":
-		log.Printf("[AcquireLock::`%s`] lock acquired on `%s` for %d seconds ", l.name, key, int(ttl.Seconds()))
+		log.Printf("[AcquireLock::`%s`] timeout", l.name)
+	case result.Int16 == 1:
+		// lock was obtained successfully
+		log.Printf("[AcquireLock::`%s`] lock acquired on `%s` for %d seconds ", l.name, key, int(timeout.Seconds()))
 	}
 
 	return nil
