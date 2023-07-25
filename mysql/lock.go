@@ -104,7 +104,25 @@ func (l *MySQLLocker) IsLockAcquired(ctx context.Context, key string) (bool, err
 	case !result.Valid: // NULL
 		return false, nil
 	default:
-		log.Printf("[IsLockAcquired::`%s`] lock on `%s` exists: %s", l.name, key, result.String)
+		return true, nil
 	}
-	return true, nil
+}
+
+func (l *MySQLLocker) IsLockFree(ctx context.Context, key string) (bool, error) {
+	var result sql.NullString
+	row := l.db.QueryRowContext(ctx, "SELECT IS_FREE_LOCK(?)", key)
+	if row.Err() != nil {
+		return false, row.Err()
+	}
+	err := row.Scan(&result)
+	if err != nil {
+		return false, err
+	}
+
+	switch {
+	case !result.Valid: // NULL
+		return false, nil
+	default:
+		return true, nil
+	}
 }
