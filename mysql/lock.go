@@ -33,18 +33,20 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.
 	case !result.Valid: // NULL
 		// ... running out of memory or the thread was killed with mysqladmin kill
 		return &LockError{
-			Message: "failed to acquire lock", 
-			Method: "AcquireLock", 
-			SessionName: l.name, 
-			Driver: "mysql",
+			Err:         ErrorLockAcquisitionFailed,
+			Message:     "failed to acquire lock",
+			Method:      "AcquireLock",
+			SessionName: l.name,
+			Driver:      "mysql",
 		}
 	case result.Int16 == 0:
 		// for example, because another client has previously locked the name
 		return &LockError{
-			Message: "timeout",
-			Method: "AcquireLock",
+			Err:         ErrorLockTimeout,
+			Message:     "timeout",
+			Method:      "AcquireLock",
 			SessionName: l.name,
-			Driver: "mysql",
+			Driver:      "mysql",
 		}
 	case result.Int16 == 1:
 		// lock was obtained successfully
@@ -54,7 +56,7 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.
 }
 
 func (l *MySQLLocker) ReleaseLock(ctx context.Context, key string) error {
-	var result sql.NullString
+	var result sql.NullInt16
 	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_LOCK(?)", key)
 	if row.Err() != nil {
 		return row.Err()
@@ -65,11 +67,24 @@ func (l *MySQLLocker) ReleaseLock(ctx context.Context, key string) error {
 	}
 	switch {
 	case !result.Valid: // NULL
-		log.Printf("[ReleaseLock::`%s`] lock on `%s` doesn't exist", l.name, key)
-	case result.String == "0":
-		log.Printf("[ReleaseLock::`%s`] lock on `%s` not owned by self", l.name, key)
+		// the named lock did not exist
+		return &LockError{
+			Err:         ErrorLockDoesNotExist,
+			Message:     "lock does not exist",
+			Method:      "ReleaseLock",
+			SessionName: l.name,
+			Driver:      "mysql",
+		}
+	case result.Int16 == 0:
 		// lock was not established by this thread (in which case the lock is not released)
-	case result.String == "1":
+		return &LockError{
+			Err:         ErrorLockNotOwned,
+			Message:     "lock not owned",
+			Method:      "ReleaseLock",
+			SessionName: l.name,
+			Driver:      "mysql",
+		}
+	case result.Int16 == 1:
 		log.Printf("[ReleaseLock::`%s`] lock on `%s` released", l.name, key)
 	}
 	return nil
@@ -87,10 +102,9 @@ func (l *MySQLLocker) IsLockAcquired(ctx context.Context, key string) (bool, err
 	}
 	switch {
 	case !result.Valid: // NULL
-		log.Printf("[IsLockAcquired::`%s`] lock on `%s` does not exist", l.name, key)
 		return false, nil
 	default:
 		log.Printf("[IsLockAcquired::`%s`] lock on `%s` exists: %s", l.name, key, result.String)
 	}
-	return false, nil
+	return true, nil
 }
