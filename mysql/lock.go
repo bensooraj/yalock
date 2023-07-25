@@ -32,15 +32,24 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.
 	switch {
 	case !result.Valid: // NULL
 		// ... running out of memory or the thread was killed with mysqladmin kill
-		log.Printf("[AcquireLock::`%s`] failed to acquire lock on `%s` for %d seconds", l.name, key, int(timeout.Seconds()))
+		return &LockError{
+			Message: "failed to acquire lock", 
+			Method: "AcquireLock", 
+			SessionName: l.name, 
+			Driver: "mysql",
+		}
 	case result.Int16 == 0:
 		// for example, because another client has previously locked the name
-		log.Printf("[AcquireLock::`%s`] timeout", l.name)
+		return &LockError{
+			Message: "timeout",
+			Method: "AcquireLock",
+			SessionName: l.name,
+			Driver: "mysql",
+		}
 	case result.Int16 == 1:
 		// lock was obtained successfully
 		log.Printf("[AcquireLock::`%s`] lock acquired on `%s` for %d seconds ", l.name, key, int(timeout.Seconds()))
 	}
-
 	return nil
 }
 
