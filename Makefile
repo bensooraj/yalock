@@ -1,7 +1,7 @@
 include .env
 
 test-mysql:
-	@go test -v -cover -coverprofile=coverage.out ./mysql \
+	@go test -race -v -cover -coverprofile=coverage.out ./mysql \
 		-driver-name=mysql \
 		-db-username=$(DB_USERNAME) \
 		-db-password=$(DB_PASSWORD) \

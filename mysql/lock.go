@@ -17,6 +17,10 @@ type MySQLLocker struct {
 	db   *sql.DB
 }
 
+func (l *MySQLLocker) Name() string {
+	return l.name
+}
+
 func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
 	var result sql.NullInt16
 
