@@ -64,44 +64,44 @@ func TestLocker_Basic(t *testing.T) {
 	lockerName := "test-locker-1"
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	locker1 := mysql.NewMySQLLock(lockerName, dbConn1)
+	lock1 := mysql.NewMySQLLock(lockerName, dbConn1)
 
 	t.Run("should be able to acquire a lock", func(t *testing.T) {
-		err := locker1.AcquireLock(ctx, key, 1*time.Second)
+		err := lock1.AcquireLock(ctx, key, 1*time.Second)
 		assert.NoError(t, err, "AcquireLock should not return an error")
 	})
 
 	t.Run("the key should be in acquired state", func(t *testing.T) {
-		acquired, err := locker1.IsLockAcquired(ctx, key)
+		acquired, err := lock1.IsLockAcquired(ctx, key)
 		assert.NoError(t, err, "IsLockAcquired should not return an error")
 		assert.True(t, acquired, "IsLockAcquired should return true")
 	})
 
 	t.Run("the key should not be free", func(t *testing.T) {
-		free, err := locker1.IsLockFree(ctx, key)
+		free, err := lock1.IsLockFree(ctx, key)
 		assert.NoError(t, err, "IsLockFree should not return an error")
 		assert.False(t, free, "IsLockFree should return false")
 	})
 
 	t.Run("should be able to release the lock", func(t *testing.T) {
-		err := locker1.ReleaseLock(ctx, key)
+		err := lock1.ReleaseLock(ctx, key)
 		assert.NoError(t, err, "ReleaseLock should not return an error")
 	})
 
 	t.Run("the key should be in free state after release", func(t *testing.T) {
-		free, err := locker1.IsLockFree(ctx, key)
+		free, err := lock1.IsLockFree(ctx, key)
 		assert.NoError(t, err, "IsLockFree should not return an error")
 		assert.True(t, free, "IsLockFree should return true")
 	})
 
 	t.Run("the key should not be in acquired state after release", func(t *testing.T) {
-		acquired, err := locker1.IsLockAcquired(ctx, key)
+		acquired, err := lock1.IsLockAcquired(ctx, key)
 		assert.NoError(t, err, "IsLockAcquired should not return an error")
 		assert.False(t, acquired, "IsLockAcquired should return false")
 	})
 
 	t.Run("should have zero keys to release", func(t *testing.T) {
-		n, err := locker1.ReleaseAllLocks(ctx)
+		n, err := lock1.ReleaseAllLocks(ctx)
 		assert.NoError(t, err, "ReleaseAllLocks should not return an error")
 		assert.Equal(t, 0, n, "ReleaseAllLocks should return 0")
 	})
