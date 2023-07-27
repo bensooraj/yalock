@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -144,6 +146,54 @@ func TestLocker_TwoLockersSequential(t *testing.T) {
 	t.Run(fmt.Sprintf("%s should be able to release the lock", locker2.Name()), func(t *testing.T) {
 		err := locker2.ReleaseLock(ctx, key)
 		assert.NoError(t, err, "ReleaseLock should not return an error")
+	})
+}
+
+func TestLocker_TwoLockersParallel(t *testing.T) {
+	key := uuid.New().String()
+
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+
+	lockerName := "test-locker-1"
+	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+
+	lockerName = "test-locker-2"
+	locker2 := mysql.NewMySQLLocker(lockerName, dbConn2)
+
+	var num atomic.Int32
+
+	t.Run(fmt.Sprintf("%s should be able to acquire a lock", locker1.Name()), func(t *testing.T) {
+		wg := sync.WaitGroup{}
+
+		for _, locker := range []*mysql.MySQLLocker{locker1, locker2} {
+			wg.Add(1)
+
+			go func(locker *mysql.MySQLLocker) {
+				defer wg.Done()
+
+				err := locker.AcquireLock(ctx, key, 1*time.Second)
+				if err == nil {
+					time.Sleep(3 * time.Second) // simulate processing time
+					num.Add(1)                  // increment the value
+				}
+				defer locker.ReleaseLock(ctx, key)
+
+			}(locker)
+		}
+		wg.Wait()
+		assert.Equal(t, int32(1), num.Load(), "only one locker should be able to acquire the lock to update the value")
+	})
+
+	t.Run(fmt.Sprintf("%s should have no locks to release", locker1.Name()), func(t *testing.T) {
+		n, err := locker1.ReleaseAllLocks(ctx)
+		assert.NoError(t, err, "ReleaseAllLocks should not return an error")
+		assert.Equal(t, 0, n, "ReleaseAllLocks should return 0")
+	})
+
+	t.Run(fmt.Sprintf("%s should have no locks to release", locker2.Name()), func(t *testing.T) {
+		n, err := locker2.ReleaseAllLocks(ctx)
+		assert.NoError(t, err, "ReleaseAllLocks should not return an error")
+		assert.Equal(t, 0, n, "ReleaseAllLocks should return 0")
 	})
 }
 
