@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func TestLocker_Basic(t *testing.T) {
+func TestLock_Basic(t *testing.T) {
 	key := uuid.New().String()
 	lockName := "test-lock-1"
 
@@ -107,7 +107,7 @@ func TestLocker_Basic(t *testing.T) {
 	})
 }
 
-func TestLocker_TwoLockersSequential(t *testing.T) {
+func TestLock_TwoLocksSequential(t *testing.T) {
 	key := uuid.New().String()
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
@@ -149,7 +149,7 @@ func TestLocker_TwoLockersSequential(t *testing.T) {
 	})
 }
 
-func TestLocker_TwoLockersParallel(t *testing.T) {
+func TestLock_TwoLockParallel(t *testing.T) {
 	key := uuid.New().String()
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
@@ -197,7 +197,7 @@ func TestLocker_TwoLockersParallel(t *testing.T) {
 	})
 }
 
-func TestLocker_Timeouts(t *testing.T) {
+func TestLock_Timeouts(t *testing.T) {
 	key := uuid.New().String()
 
 	lockName := "test-lock-1"
