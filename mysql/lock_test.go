@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -144,6 +146,106 @@ func TestLocker_TwoLockersSequential(t *testing.T) {
 	t.Run(fmt.Sprintf("%s should be able to release the lock", locker2.Name()), func(t *testing.T) {
 		err := locker2.ReleaseLock(ctx, key)
 		assert.NoError(t, err, "ReleaseLock should not return an error")
+	})
+}
+
+func TestLocker_TwoLockersParallel(t *testing.T) {
+	key := uuid.New().String()
+
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+
+	lockerName := "test-locker-1"
+	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+
+	lockerName = "test-locker-2"
+	locker2 := mysql.NewMySQLLocker(lockerName, dbConn2)
+
+	t.Run(fmt.Sprintf("%s should be able to acquire a lock", locker1.Name()), func(t *testing.T) {
+		var num atomic.Int32
+
+		wg := sync.WaitGroup{}
+
+		for _, locker := range []*mysql.MySQLLocker{locker1, locker2} {
+			wg.Add(1)
+
+			go func(locker *mysql.MySQLLocker) {
+				defer wg.Done()
+
+				err := locker.AcquireLock(ctx, key, 1*time.Second)
+				if err == nil {
+					time.Sleep(3 * time.Second) // simulate processing time
+					num.Add(1)                  // increment the value
+				}
+				defer locker.ReleaseLock(ctx, key)
+
+			}(locker)
+		}
+		wg.Wait()
+		assert.Equal(t, int32(1), num.Load(), "only one locker should be able to acquire the lock to update the value")
+	})
+
+	t.Run(fmt.Sprintf("%s should have no locks to release", locker1.Name()), func(t *testing.T) {
+		n, err := locker1.ReleaseAllLocks(ctx)
+		assert.NoError(t, err, "ReleaseAllLocks should not return an error")
+		assert.Equal(t, 0, n, "ReleaseAllLocks should return 0")
+	})
+
+	t.Run(fmt.Sprintf("%s should have no locks to release", locker2.Name()), func(t *testing.T) {
+		n, err := locker2.ReleaseAllLocks(ctx)
+		assert.NoError(t, err, "ReleaseAllLocks should not return an error")
+		assert.Equal(t, 0, n, "ReleaseAllLocks should return 0")
+	})
+}
+
+func TestLocker_Timeouts(t *testing.T) {
+	key := uuid.New().String()
+
+	lockerName := "test-locker-1"
+	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+
+	lockerName = "test-locker-2"
+	locker2 := mysql.NewMySQLLocker(lockerName, dbConn2)
+
+	t.Run(fmt.Sprintf("%s should timeout upon context timeout", locker2.Name()), func(t *testing.T) {
+		// Contect valid for 2 seconds
+		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+
+		// Locker 1 acquires the lock with a timeout of 0 second (almost immediately)
+		err := locker1.AcquireLock(ctx, key, 0*time.Second)
+		assert.NoError(t, err, "AcquireLock should not return an error")
+		defer locker1.ReleaseLock(ctx, key)
+
+		// Locker 2 attempts to acquire the lock with a timeout of -1 (blocking, inifiite waiting time)
+		err = locker2.AcquireLock(ctx, key, -1*time.Second)
+		assert.ErrorIs(t, err, context.DeadlineExceeded, "AcquireLock should return context.DeadlineExceeded")
+	})
+
+	t.Run(fmt.Sprintf("%s should timeout upon context cancellation", locker2.Name()), func(t *testing.T) {
+		// Contect with cancel
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Locker 1 acquires the lock with a timeout of 0 second (almost immediately)
+		err := locker1.AcquireLock(ctx, key, 0*time.Second)
+		assert.NoError(t, err, "AcquireLock should not return an error")
+		defer locker1.ReleaseLock(ctx, key)
+
+		// Locker 2 attempts to acquire the lock with a timeout of -1 (blocking, inifiite waiting time)
+		time.AfterFunc(1*time.Second, cancel)
+		err = locker2.AcquireLock(ctx, key, -1*time.Second)
+		assert.ErrorIs(t, err, context.Canceled, "AcquireLock should return context.Canceled")
+	})
+
+	t.Run(fmt.Sprintf("%s should timeout waiting on %s", locker2.Name(), locker1.Name()), func(t *testing.T) {
+		ctx := context.Background()
+
+		// Locker 1 acquires the lock with a timeout of 0 second (almost immediately)
+		err := locker1.AcquireLock(ctx, key, 0*time.Second)
+		assert.NoError(t, err, "AcquireLock should not return an error")
+		defer locker1.ReleaseLock(ctx, key)
+
+		// Locker 2 attempts to acquire the lock with a timeout of 1 second
+		err = locker2.AcquireLock(ctx, key, 1*time.Second)
+		assert.ErrorIs(t, err, mysql.ErrorLockTimeout, "AcquireLock should return ErrorLockTimeout")
 	})
 }
 
