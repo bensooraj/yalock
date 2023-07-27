@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func NewMySQLLocker(name string, db *sql.DB) *MySQLLock {
+func NewMySQLLock(name string, db *sql.DB) *MySQLLock {
 	return &MySQLLock{name: name, db: db}
 }
 

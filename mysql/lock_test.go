@@ -64,7 +64,7 @@ func TestLocker_Basic(t *testing.T) {
 	lockerName := "test-locker-1"
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+	locker1 := mysql.NewMySQLLock(lockerName, dbConn1)
 
 	t.Run("should be able to acquire a lock", func(t *testing.T) {
 		err := locker1.AcquireLock(ctx, key, 1*time.Second)
@@ -113,10 +113,10 @@ func TestLocker_TwoLockersSequential(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 
 	lockerName := "test-locker-1"
-	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+	locker1 := mysql.NewMySQLLock(lockerName, dbConn1)
 
 	lockerName = "test-locker-2"
-	locker2 := mysql.NewMySQLLocker(lockerName, dbConn2)
+	locker2 := mysql.NewMySQLLock(lockerName, dbConn2)
 
 	t.Run(fmt.Sprintf("%s should be able to acquire a lock", locker1.Name()), func(t *testing.T) {
 		err := locker1.AcquireLock(ctx, key, 1*time.Second)
@@ -155,10 +155,10 @@ func TestLocker_TwoLockersParallel(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 
 	lockerName := "test-locker-1"
-	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+	locker1 := mysql.NewMySQLLock(lockerName, dbConn1)
 
 	lockerName = "test-locker-2"
-	locker2 := mysql.NewMySQLLocker(lockerName, dbConn2)
+	locker2 := mysql.NewMySQLLock(lockerName, dbConn2)
 
 	t.Run(fmt.Sprintf("%s should be able to acquire a lock", locker1.Name()), func(t *testing.T) {
 		var num atomic.Int32
@@ -201,10 +201,10 @@ func TestLocker_Timeouts(t *testing.T) {
 	key := uuid.New().String()
 
 	lockerName := "test-locker-1"
-	locker1 := mysql.NewMySQLLocker(lockerName, dbConn1)
+	locker1 := mysql.NewMySQLLock(lockerName, dbConn1)
 
 	lockerName = "test-locker-2"
-	locker2 := mysql.NewMySQLLocker(lockerName, dbConn2)
+	locker2 := mysql.NewMySQLLock(lockerName, dbConn2)
 
 	t.Run(fmt.Sprintf("%s should timeout upon context timeout", locker2.Name()), func(t *testing.T) {
 		// Contect valid for 2 seconds
