@@ -3,7 +3,6 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"log"
 	"time"
 )
 
@@ -26,11 +25,33 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.
 
 	row := l.db.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", key, int(timeout.Seconds()))
 	if row.Err() != nil {
-		return row.Err()
+		select {
+		case <-ctx.Done():
+			return &LockError{
+				Err:         ctx.Err(),
+				Message:     "context deadline exceeded while querying row",
+				Method:      "AcquireLock",
+				SessionName: l.name,
+				Driver:      "mysql",
+			}
+		default:
+			return row.Err()
+		}
 	}
 	err := row.Scan(&result)
 	if err != nil {
-		return err
+		select {
+		case <-ctx.Done():
+			return &LockError{
+				Err:         ctx.Err(),
+				Message:     "context deadline exceeded while scanning row",
+				Method:      "AcquireLock",
+				SessionName: l.name,
+				Driver:      "mysql",
+			}
+		default:
+			return err
+		}
 	}
 
 	switch {
@@ -54,7 +75,7 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.
 		}
 	case result.Int16 == 1:
 		// lock was obtained successfully
-		log.Printf("[AcquireLock::`%s`] lock acquired on `%s` for %d seconds ", l.name, key, int(timeout.Seconds()))
+		// log.Printf("[AcquireLock::`%s`] lock acquired on `%s` with a timeout of %d seconds ", l.name, key, int(timeout.Seconds()))
 	}
 	return nil
 }
@@ -89,7 +110,7 @@ func (l *MySQLLocker) ReleaseLock(ctx context.Context, key string) error {
 			Driver:      "mysql",
 		}
 	case result.Int16 == 1:
-		log.Printf("[ReleaseLock::`%s`] lock on `%s` released", l.name, key)
+		// log.Printf("[ReleaseLock::`%s`] lock on `%s` released", l.name, key)
 	}
 	return nil
 }
