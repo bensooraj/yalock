@@ -165,10 +165,10 @@ func TestLocker_TwoLockersParallel(t *testing.T) {
 
 		wg := sync.WaitGroup{}
 
-		for _, locker := range []*mysql.MySQLLocker{locker1, locker2} {
+		for _, locker := range []*mysql.MySQLLock{locker1, locker2} {
 			wg.Add(1)
 
-			go func(locker *mysql.MySQLLocker) {
+			go func(locker *mysql.MySQLLock) {
 				defer wg.Done()
 
 				err := locker.AcquireLock(ctx, key, 1*time.Second)

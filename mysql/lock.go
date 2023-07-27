@@ -6,21 +6,21 @@ import (
 	"time"
 )
 
-func NewMySQLLocker(name string, db *sql.DB) *MySQLLocker {
-	return &MySQLLocker{name: name, db: db}
+func NewMySQLLocker(name string, db *sql.DB) *MySQLLock {
+	return &MySQLLock{name: name, db: db}
 }
 
 // Documentation: https://dev.mysql.com/doc/refman/5.7/en/locking-functions.html#function_release-lock
-type MySQLLocker struct {
+type MySQLLock struct {
 	name string
 	db   *sql.DB
 }
 
-func (l *MySQLLocker) Name() string {
+func (l *MySQLLock) Name() string {
 	return l.name
 }
 
-func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
+func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
 	var result sql.NullInt16
 
 	row := l.db.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", key, int(timeout.Seconds()))
@@ -80,7 +80,7 @@ func (l *MySQLLocker) AcquireLock(ctx context.Context, key string, timeout time.
 	return nil
 }
 
-func (l *MySQLLocker) ReleaseLock(ctx context.Context, key string) error {
+func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
 	var result sql.NullInt16
 	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_LOCK(?)", key)
 	if row.Err() != nil {
@@ -115,7 +115,7 @@ func (l *MySQLLocker) ReleaseLock(ctx context.Context, key string) error {
 	return nil
 }
 
-func (l *MySQLLocker) IsLockAcquired(ctx context.Context, key string) (bool, error) {
+func (l *MySQLLock) IsLockAcquired(ctx context.Context, key string) (bool, error) {
 	var result sql.NullString
 	row := l.db.QueryRowContext(ctx, "SELECT IS_USED_LOCK(?)", key)
 	if row.Err() != nil {
@@ -133,7 +133,7 @@ func (l *MySQLLocker) IsLockAcquired(ctx context.Context, key string) (bool, err
 	}
 }
 
-func (l *MySQLLocker) IsLockFree(ctx context.Context, key string) (bool, error) {
+func (l *MySQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
 	var result sql.NullInt16
 	row := l.db.QueryRowContext(ctx, "SELECT IS_FREE_LOCK(?)", key)
 	if row.Err() != nil {
@@ -164,7 +164,7 @@ func (l *MySQLLocker) IsLockFree(ctx context.Context, key string) (bool, error) 
 	return false, nil
 }
 
-func (l *MySQLLocker) ReleaseAllLocks(ctx context.Context) (int, error) {
+func (l *MySQLLock) ReleaseAllLocks(ctx context.Context) (int, error) {
 	var result sql.NullInt32
 	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_ALL_LOCKS()")
 	if row.Err() != nil {
