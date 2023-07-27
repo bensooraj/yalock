@@ -181,7 +181,7 @@ func TestLock_TwoLockParallel(t *testing.T) {
 			}(lock)
 		}
 		wg.Wait()
-		assert.Equal(t, int32(1), num.Load(), "only one locker should be able to acquire the lock to update the value")
+		assert.Equal(t, int32(1), num.Load(), "only one lock should be able to acquire the lock to update the value")
 	})
 
 	t.Run(fmt.Sprintf("%s should have no locks to release", lock1.Name()), func(t *testing.T) {
@@ -210,12 +210,12 @@ func TestLock_Timeouts(t *testing.T) {
 		// Contect valid for 2 seconds
 		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
 
-		// Locker 1 acquires the lock with a timeout of 0 second (almost immediately)
+		// Lock 1 acquires the lock with a timeout of 0 second (almost immediately)
 		err := lock1.AcquireLock(ctx, key, 0*time.Second)
 		assert.NoError(t, err, "AcquireLock should not return an error")
 		defer lock1.ReleaseLock(ctx, key)
 
-		// Locker 2 attempts to acquire the lock with a timeout of -1 (blocking, inifiite waiting time)
+		// Lock 2 attempts to acquire the lock with a timeout of -1 (blocking, inifiite waiting time)
 		err = lock2.AcquireLock(ctx, key, -1*time.Second)
 		assert.ErrorIs(t, err, context.DeadlineExceeded, "AcquireLock should return context.DeadlineExceeded")
 	})
@@ -224,12 +224,12 @@ func TestLock_Timeouts(t *testing.T) {
 		// Contect with cancel
 		ctx, cancel := context.WithCancel(context.Background())
 
-		// Locker 1 acquires the lock with a timeout of 0 second (almost immediately)
+		// Lock 1 acquires the lock with a timeout of 0 second (almost immediately)
 		err := lock1.AcquireLock(ctx, key, 0*time.Second)
 		assert.NoError(t, err, "AcquireLock should not return an error")
 		defer lock1.ReleaseLock(ctx, key)
 
-		// Locker 2 attempts to acquire the lock with a timeout of -1 (blocking, inifiite waiting time)
+		// Lock 2 attempts to acquire the lock with a timeout of -1 (blocking, inifiite waiting time)
 		time.AfterFunc(1*time.Second, cancel)
 		err = lock2.AcquireLock(ctx, key, -1*time.Second)
 		assert.ErrorIs(t, err, context.Canceled, "AcquireLock should return context.Canceled")
@@ -238,12 +238,12 @@ func TestLock_Timeouts(t *testing.T) {
 	t.Run(fmt.Sprintf("%s should timeout waiting on %s", lock2.Name(), lock1.Name()), func(t *testing.T) {
 		ctx := context.Background()
 
-		// Locker 1 acquires the lock with a timeout of 0 second (almost immediately)
+		// Lock 1 acquires the lock with a timeout of 0 second (almost immediately)
 		err := lock1.AcquireLock(ctx, key, 0*time.Second)
 		assert.NoError(t, err, "AcquireLock should not return an error")
 		defer lock1.ReleaseLock(ctx, key)
 
-		// Locker 2 attempts to acquire the lock with a timeout of 1 second
+		// Lock 2 attempts to acquire the lock with a timeout of 1 second
 		err = lock2.AcquireLock(ctx, key, 1*time.Second)
 		assert.ErrorIs(t, err, mysql.ErrorLockTimeout, "AcquireLock should return ErrorLockTimeout")
 	})
