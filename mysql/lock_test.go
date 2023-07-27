@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 
 func TestLocker_Basic(t *testing.T) {
 	key := uuid.New().String()
-	lockName := "test-locker-1"
+	lockName := "test-lock-1"
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	lock1 := mysql.NewMySQLLock(lockName, dbConn1)
@@ -112,10 +112,10 @@ func TestLocker_TwoLockersSequential(t *testing.T) {
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 
-	lockName := "test-locker-1"
+	lockName := "test-lock-1"
 	lock1 := mysql.NewMySQLLock(lockName, dbConn1)
 
-	lockName = "test-locker-2"
+	lockName = "test-lock-2"
 	lock2 := mysql.NewMySQLLock(lockName, dbConn2)
 
 	t.Run(fmt.Sprintf("%s should be able to acquire a lock", lock1.Name()), func(t *testing.T) {
@@ -154,10 +154,10 @@ func TestLocker_TwoLockersParallel(t *testing.T) {
 
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 
-	lockName := "test-locker-1"
+	lockName := "test-lock-1"
 	lock1 := mysql.NewMySQLLock(lockName, dbConn1)
 
-	lockName = "test-locker-2"
+	lockName = "test-lock-2"
 	lock2 := mysql.NewMySQLLock(lockName, dbConn2)
 
 	t.Run(fmt.Sprintf("%s should be able to acquire a lock", lock1.Name()), func(t *testing.T) {
@@ -200,10 +200,10 @@ func TestLocker_TwoLockersParallel(t *testing.T) {
 func TestLocker_Timeouts(t *testing.T) {
 	key := uuid.New().String()
 
-	lockName := "test-locker-1"
+	lockName := "test-lock-1"
 	lock1 := mysql.NewMySQLLock(lockName, dbConn1)
 
-	lockName = "test-locker-2"
+	lockName = "test-lock-2"
 	lock2 := mysql.NewMySQLLock(lockName, dbConn2)
 
 	t.Run(fmt.Sprintf("%s should timeout upon context timeout", lock2.Name()), func(t *testing.T) {
