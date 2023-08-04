@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/bensooraj/yalock"
 )
 
 func NewMySQLLock(name string, db *sql.DB) *MySQLLock {
@@ -27,7 +29,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 	if row.Err() != nil {
 		select {
 		case <-ctx.Done():
-			return &LockError{
+			return &yalock.LockError{
 				Err:         ctx.Err(),
 				Message:     "context deadline exceeded while querying row",
 				Method:      "AcquireLock",
@@ -42,7 +44,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 	if err != nil {
 		select {
 		case <-ctx.Done():
-			return &LockError{
+			return &yalock.LockError{
 				Err:         ctx.Err(),
 				Message:     "context deadline exceeded while scanning row",
 				Method:      "AcquireLock",
@@ -57,8 +59,8 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 	switch {
 	case !result.Valid: // NULL
 		// ... running out of memory or the thread was killed with mysqladmin kill
-		return &LockError{
-			Err:         ErrorLockAcquisitionFailed,
+		return &yalock.LockError{
+			Err:         yalock.ErrorLockAcquisitionFailed,
 			Message:     "failed to acquire lock",
 			Method:      "AcquireLock",
 			SessionName: l.name,
@@ -66,8 +68,8 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 		}
 	case result.Int16 == 0:
 		// for example, because another client has previously locked the name
-		return &LockError{
-			Err:         ErrorLockTimeout,
+		return &yalock.LockError{
+			Err:         yalock.ErrorLockTimeout,
 			Message:     "timeout",
 			Method:      "AcquireLock",
 			SessionName: l.name,
@@ -93,8 +95,8 @@ func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
 	switch {
 	case !result.Valid: // NULL
 		// the named lock did not exist
-		return &LockError{
-			Err:         ErrorLockDoesNotExist,
+		return &yalock.LockError{
+			Err:         yalock.ErrorLockDoesNotExist,
 			Message:     "lock does not exist",
 			Method:      "ReleaseLock",
 			SessionName: l.name,
@@ -102,8 +104,8 @@ func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
 		}
 	case result.Int16 == 0:
 		// lock was not established by this thread (in which case the lock is not released)
-		return &LockError{
-			Err:         ErrorLockNotOwned,
+		return &yalock.LockError{
+			Err:         yalock.ErrorLockNotOwned,
 			Message:     "lock not owned",
 			Method:      "ReleaseLock",
 			SessionName: l.name,
@@ -147,8 +149,8 @@ func (l *MySQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
 	switch {
 	case !result.Valid: // NULL
 		// if an error occurs (such as an incorrect argument)
-		return false, &LockError{
-			Err:         ErrorLockUnknown,
+		return false, &yalock.LockError{
+			Err:         yalock.ErrorLockUnknown,
 			Message:     "unknown error (possibly an incorrect argument)",
 			Method:      "IsLockFree",
 			SessionName: l.name,
