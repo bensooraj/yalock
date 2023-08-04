@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -20,10 +21,31 @@ func (l *PostgreSQLLock) Name() string {
 	return l.name
 }
 
-func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
-	var result sql.NullInt16
+func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key interface{}, timeout time.Duration) error {
+	// validate the arguments passments
+	keyI, ok := key.(int64)
+	if !ok {
+		return &LockError{
+			Err:         errors.New("key must be a 64-bit integer"),
+			Message:     "key must be a 64-bit integer",
+			Method:      "AcquireLock",
+			SessionName: l.name,
+			Driver:      "postgres",
+		}
+	}
 
-	row := l.db.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", key, int(timeout.Seconds()))
+	var (
+		result sql.NullBool
+		q string
+	)
+	// if timeout is negative, then wait indefinitely
+	if timeout < 0 {
+		q = "SELECT pg_advisory_lock(?)"
+	} else {	
+		q = "SELECT pg_try_advisory_lock(?)"
+	}
+
+	row := l.db.QueryRowContext(ctx, q, keyI)
 	if row.Err() != nil {
 		select {
 		case <-ctx.Done():
@@ -56,7 +78,7 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key string, timeout ti
 
 	switch {
 	case !result.Valid: // NULL
-		// ... running out of memory or the thread was killed with mysqladmin kill
+	case !result.Bool:
 		return &LockError{
 			Err:         ErrorLockAcquisitionFailed,
 			Message:     "failed to acquire lock",
@@ -64,18 +86,8 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key string, timeout ti
 			SessionName: l.name,
 			Driver:      "postgres",
 		}
-	case result.Int16 == 0:
-		// for example, because another client has previously locked the name
-		return &LockError{
-			Err:         ErrorLockTimeout,
-			Message:     "timeout",
-			Method:      "AcquireLock",
-			SessionName: l.name,
-			Driver:      "postgres",
-		}
-	case result.Int16 == 1:
+	case result.Bool:
 		// lock was obtained successfully
-		// log.Printf("[AcquireLock::`%s`] lock acquired on `%s` with a timeout of %d seconds ", l.name, key, int(timeout.Seconds()))
 	}
 	return nil
 }
