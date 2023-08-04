@@ -1,4 +1,4 @@
-package mysql
+package postgres
 
 import (
 	"context"
@@ -6,21 +6,21 @@ import (
 	"time"
 )
 
-func NewMySQLLock(name string, db *sql.DB) *MySQLLock {
-	return &MySQLLock{name: name, db: db}
+func NewPostgreSQLLock(name string, db *sql.DB) *PostgreSQLLock {
+	return &PostgreSQLLock{name: name, db: db}
 }
 
-// Documentation: https://dev.mysql.com/doc/refman/5.7/en/locking-functions.html#function_release-lock
-type MySQLLock struct {
+// Documentation: https://www.postgresql.org/docs/9.1/functions-admin.html
+type PostgreSQLLock struct {
 	name string
 	db   *sql.DB
 }
 
-func (l *MySQLLock) Name() string {
+func (l *PostgreSQLLock) Name() string {
 	return l.name
 }
 
-func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
+func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key string, timeout time.Duration) error {
 	var result sql.NullInt16
 
 	row := l.db.QueryRowContext(ctx, "SELECT GET_LOCK(?, ?)", key, int(timeout.Seconds()))
@@ -32,7 +32,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 				Message:     "context deadline exceeded while querying row",
 				Method:      "AcquireLock",
 				SessionName: l.name,
-				Driver:      "mysql",
+				Driver:      "postgres",
 			}
 		default:
 			return row.Err()
@@ -47,7 +47,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 				Message:     "context deadline exceeded while scanning row",
 				Method:      "AcquireLock",
 				SessionName: l.name,
-				Driver:      "mysql",
+				Driver:      "postgres",
 			}
 		default:
 			return err
@@ -62,7 +62,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 			Message:     "failed to acquire lock",
 			Method:      "AcquireLock",
 			SessionName: l.name,
-			Driver:      "mysql",
+			Driver:      "postgres",
 		}
 	case result.Int16 == 0:
 		// for example, because another client has previously locked the name
@@ -71,7 +71,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 			Message:     "timeout",
 			Method:      "AcquireLock",
 			SessionName: l.name,
-			Driver:      "mysql",
+			Driver:      "postgres",
 		}
 	case result.Int16 == 1:
 		// lock was obtained successfully
@@ -80,7 +80,7 @@ func (l *MySQLLock) AcquireLock(ctx context.Context, key string, timeout time.Du
 	return nil
 }
 
-func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
+func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key string) error {
 	var result sql.NullInt16
 	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_LOCK(?)", key)
 	if row.Err() != nil {
@@ -98,7 +98,7 @@ func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
 			Message:     "lock does not exist",
 			Method:      "ReleaseLock",
 			SessionName: l.name,
-			Driver:      "mysql",
+			Driver:      "postgres",
 		}
 	case result.Int16 == 0:
 		// lock was not established by this thread (in which case the lock is not released)
@@ -107,7 +107,7 @@ func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
 			Message:     "lock not owned",
 			Method:      "ReleaseLock",
 			SessionName: l.name,
-			Driver:      "mysql",
+			Driver:      "postgres",
 		}
 	case result.Int16 == 1:
 		// log.Printf("[ReleaseLock::`%s`] lock on `%s` released", l.name, key)
@@ -115,7 +115,7 @@ func (l *MySQLLock) ReleaseLock(ctx context.Context, key string) error {
 	return nil
 }
 
-func (l *MySQLLock) IsLockAcquired(ctx context.Context, key string) (bool, error) {
+func (l *PostgreSQLLock) IsLockAcquired(ctx context.Context, key string) (bool, error) {
 	var result sql.NullString
 	row := l.db.QueryRowContext(ctx, "SELECT IS_USED_LOCK(?)", key)
 	if row.Err() != nil {
@@ -133,7 +133,7 @@ func (l *MySQLLock) IsLockAcquired(ctx context.Context, key string) (bool, error
 	}
 }
 
-func (l *MySQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
+func (l *PostgreSQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
 	var result sql.NullInt16
 	row := l.db.QueryRowContext(ctx, "SELECT IS_FREE_LOCK(?)", key)
 	if row.Err() != nil {
@@ -152,7 +152,7 @@ func (l *MySQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
 			Message:     "unknown error (possibly an incorrect argument)",
 			Method:      "IsLockFree",
 			SessionName: l.name,
-			Driver:      "mysql",
+			Driver:      "postgres",
 		}
 	case result.Int16 == 0:
 		// Lock is in use
@@ -164,7 +164,7 @@ func (l *MySQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
 	return false, nil
 }
 
-func (l *MySQLLock) ReleaseAllLocks(ctx context.Context) (int, error) {
+func (l *PostgreSQLLock) ReleaseAllLocks(ctx context.Context) (int, error) {
 	var result sql.NullInt32
 	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_ALL_LOCKS()")
 	if row.Err() != nil {
