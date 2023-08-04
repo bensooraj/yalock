@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/bensooraj/yalock"
 )
 
 func NewPostgreSQLLock(name string, db *sql.DB) *PostgreSQLLock {
@@ -39,7 +41,7 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key int64, timeout tim
 	if row.Err() != nil {
 		select {
 		case <-ctx.Done():
-			return &LockError{
+			return &yalock.LockError{
 				Err:         ctx.Err(),
 				Message:     "context deadline exceeded while querying row",
 				Method:      "AcquireLock",
@@ -54,7 +56,7 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key int64, timeout tim
 	if err != nil {
 		select {
 		case <-ctx.Done():
-			return &LockError{
+			return &yalock.LockError{
 				Err:         ctx.Err(),
 				Message:     "context deadline exceeded while scanning row",
 				Method:      "AcquireLock",
@@ -69,8 +71,8 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key int64, timeout tim
 	switch {
 	case !result.Valid: // NULL
 	case !result.Bool:
-		return &LockError{
-			Err:         ErrorLockAcquisitionFailed,
+		return &yalock.LockError{
+			Err:         yalock.ErrorLockAcquisitionFailed,
 			Message:     "failed to acquire lock",
 			Method:      "AcquireLock",
 			SessionName: l.name,
@@ -96,8 +98,8 @@ func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key int64) error {
 	case !result.Valid: // NULL
 	case !result.Bool:
 		// lock was not established by this session (in which case the lock is not released)
-		return &LockError{
-			Err:         ErrorLockNotOwned,
+		return &yalock.LockError{
+			Err:         yalock.ErrorLockNotOwned,
 			Message:     "lock not owned",
 			Method:      "ReleaseLock",
 			SessionName: l.name,
@@ -110,11 +112,11 @@ func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key int64) error {
 }
 
 func (l *PostgreSQLLock) IsLockAcquired(ctx context.Context, key string) (bool, error) {
-	return false, ErrorNotImplemented
+	return false, yalock.ErrorNotImplemented
 }
 
 func (l *PostgreSQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
-	return false, ErrorNotImplemented
+	return false, yalock.ErrorNotImplemented
 }
 
 func (l *PostgreSQLLock) ReleaseAllLocks(ctx context.Context) (int, error) {

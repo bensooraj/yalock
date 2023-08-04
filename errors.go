@@ -1,4 +1,4 @@
-package postgres
+package yalock
 
 import (
 	"errors"
@@ -27,5 +27,5 @@ var (
 	ErrorLockDoesNotExist      = errors.New("lock does not exist")
 	ErrorLockNotOwned          = errors.New("lock not owned")
 	ErrorLockUnknown           = errors.New("unknown error")
-	ErrorNotImplemented = errors.New("not implemented")
+	ErrorNotImplemented        = errors.New("not implemented")
 )
