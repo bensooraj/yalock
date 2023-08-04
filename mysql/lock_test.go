@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bensooraj/yalock"
 	"github.com/bensooraj/yalock/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -130,7 +131,7 @@ func TestLock_TwoLocksSequential(t *testing.T) {
 
 	t.Run(fmt.Sprintf("%s should be able to release the lock acquired by %s", lock2.Name(), lock1.Name()), func(t *testing.T) {
 		err := lock2.ReleaseLock(ctx, key)
-		assert.ErrorIs(t, err, mysql.ErrorLockNotOwned, "ReleaseLock should return ErrorLockNotOwned")
+		assert.ErrorIs(t, err, yalock.ErrorLockNotOwned, "ReleaseLock should return ErrorLockNotOwned")
 	})
 
 	t.Run(fmt.Sprintf("%s should be able to release the lock", lock1.Name()), func(t *testing.T) {
@@ -245,7 +246,7 @@ func TestLock_Timeouts(t *testing.T) {
 
 		// Lock 2 attempts to acquire the lock with a timeout of 1 second
 		err = lock2.AcquireLock(ctx, key, 1*time.Second)
-		assert.ErrorIs(t, err, mysql.ErrorLockTimeout, "AcquireLock should return ErrorLockTimeout")
+		assert.ErrorIs(t, err, yalock.ErrorLockTimeout, "AcquireLock should return ErrorLockTimeout")
 	})
 }
 
