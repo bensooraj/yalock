@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 )
 
@@ -11,7 +10,10 @@ func NewPostgreSQLLock(name string, db *sql.DB) *PostgreSQLLock {
 	return &PostgreSQLLock{name: name, db: db}
 }
 
-// Documentation: https://www.postgresql.org/docs/9.1/functions-admin.html
+// Documentation:
+// 1. https://www.postgresql.org/docs/9.1/functions-admin.html
+// 2. https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
+
 type PostgreSQLLock struct {
 	name string
 	db   *sql.DB
@@ -21,19 +23,7 @@ func (l *PostgreSQLLock) Name() string {
 	return l.name
 }
 
-func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key interface{}, timeout time.Duration) error {
-	// validate the arguments passments
-	keyI, ok := key.(int64)
-	if !ok {
-		return &LockError{
-			Err:         errors.New("key must be a 64-bit integer"),
-			Message:     "key must be a 64-bit integer",
-			Method:      "AcquireLock",
-			SessionName: l.name,
-			Driver:      "postgres",
-		}
-	}
-
+func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key int64, timeout time.Duration) error {
 	var (
 		result sql.NullBool
 		q string
@@ -45,7 +35,7 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key interface{}, timeo
 		q = "SELECT pg_try_advisory_lock(?)"
 	}
 
-	row := l.db.QueryRowContext(ctx, q, keyI)
+	row := l.db.QueryRowContext(ctx, q, key)
 	if row.Err() != nil {
 		select {
 		case <-ctx.Done():
@@ -92,9 +82,9 @@ func (l *PostgreSQLLock) AcquireLock(ctx context.Context, key interface{}, timeo
 	return nil
 }
 
-func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key string) error {
-	var result sql.NullInt16
-	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_LOCK(?)", key)
+func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key int64) error {
+	var result sql.NullBool
+	row := l.db.QueryRowContext(ctx, "SELECT pg_advisory_unlock(?)", key)
 	if row.Err() != nil {
 		return row.Err()
 	}
@@ -104,16 +94,8 @@ func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key string) error {
 	}
 	switch {
 	case !result.Valid: // NULL
-		// the named lock did not exist
-		return &LockError{
-			Err:         ErrorLockDoesNotExist,
-			Message:     "lock does not exist",
-			Method:      "ReleaseLock",
-			SessionName: l.name,
-			Driver:      "postgres",
-		}
-	case result.Int16 == 0:
-		// lock was not established by this thread (in which case the lock is not released)
+	case !result.Bool:
+		// lock was not established by this session (in which case the lock is not released)
 		return &LockError{
 			Err:         ErrorLockNotOwned,
 			Message:     "lock not owned",
@@ -121,70 +103,24 @@ func (l *PostgreSQLLock) ReleaseLock(ctx context.Context, key string) error {
 			SessionName: l.name,
 			Driver:      "postgres",
 		}
-	case result.Int16 == 1:
-		// log.Printf("[ReleaseLock::`%s`] lock on `%s` released", l.name, key)
+	case result.Bool:
+		// nothing to do
 	}
 	return nil
 }
 
 func (l *PostgreSQLLock) IsLockAcquired(ctx context.Context, key string) (bool, error) {
-	var result sql.NullString
-	row := l.db.QueryRowContext(ctx, "SELECT IS_USED_LOCK(?)", key)
-	if row.Err() != nil {
-		return false, row.Err()
-	}
-	err := row.Scan(&result)
-	if err != nil {
-		return false, err
-	}
-	switch {
-	case !result.Valid: // NULL
-		return false, nil
-	default:
-		return true, nil
-	}
+	return false, ErrorNotImplemented
 }
 
 func (l *PostgreSQLLock) IsLockFree(ctx context.Context, key string) (bool, error) {
-	var result sql.NullInt16
-	row := l.db.QueryRowContext(ctx, "SELECT IS_FREE_LOCK(?)", key)
-	if row.Err() != nil {
-		return false, row.Err()
-	}
-	err := row.Scan(&result)
-	if err != nil {
-		return false, err
-	}
-
-	switch {
-	case !result.Valid: // NULL
-		// if an error occurs (such as an incorrect argument)
-		return false, &LockError{
-			Err:         ErrorLockUnknown,
-			Message:     "unknown error (possibly an incorrect argument)",
-			Method:      "IsLockFree",
-			SessionName: l.name,
-			Driver:      "postgres",
-		}
-	case result.Int16 == 0:
-		// Lock is in use
-		return false, nil
-	case result.Int16 == 1:
-		// Lock is free (no one is using the lock)
-		return true, nil
-	}
-	return false, nil
+	return false, ErrorNotImplemented
 }
 
 func (l *PostgreSQLLock) ReleaseAllLocks(ctx context.Context) (int, error) {
-	var result sql.NullInt32
-	row := l.db.QueryRowContext(ctx, "SELECT RELEASE_ALL_LOCKS()")
+	row := l.db.QueryRowContext(ctx, "SELECT pg_advisory_unlock_all()")
 	if row.Err() != nil {
 		return 0, row.Err()
 	}
-	err := row.Scan(&result)
-	if err != nil {
-		return 0, err
-	}
-	return int(result.Int32), nil
+	return 0, nil
 }
